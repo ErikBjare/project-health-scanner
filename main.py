@@ -737,6 +737,28 @@ class DashboardServer:
         }}
         .git-info {{ font-size: 14px; color: #666; }}
         .chart-container {{ max-width: 600px; margin: 40px auto; }}
+        .filters {{ 
+            background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        .filters h3 {{ margin-top: 0; margin-bottom: 15px; }}
+        .filter-group {{ 
+            display: inline-block; margin-right: 20px; margin-bottom: 10px; 
+            vertical-align: top;
+        }}
+        .filter-group label {{ 
+            display: block; margin-bottom: 5px; font-weight: 500; 
+        }}
+        .filter-group select, .filter-group input {{ 
+            padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;
+            font-size: 14px; min-width: 150px;
+        }}
+        #clearFilters {{ 
+            padding: 8px 16px; background: #007AFF; color: white; border: none; 
+            border-radius: 4px; cursor: pointer; margin-left: 10px;
+        }}
+        #clearFilters:hover {{ background: #0056b3; }}
+        .project.hidden {{ display: none !important; }}
     </style>
 </head>
 <body>
@@ -745,22 +767,69 @@ class DashboardServer:
         <p>Monitoring {len(self.projects)} projects • Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
     </div>
     
+    <div class="filters">
+        <h3>🔍 Filter Projects</h3>
+        <div class="filter-group">
+            <label for="healthFilter">Health Status:</label>
+            <select id="healthFilter">
+                <option value="all">All Projects</option>
+                <option value="healthy">Healthy (8-10)</option>
+                <option value="warning">Warning (5-8)</option>
+                <option value="unhealthy">Unhealthy (0-5)</option>
+            </select>
+        </div>
+        
+        <div class="filter-group">
+            <label for="languageFilter">Language:</label>
+            <select id="languageFilter">
+                <option value="all">All Languages</option>
+            </select>
+        </div>
+        
+        <div class="filter-group">
+            <label for="githubFilter">GitHub:</label>
+            <select id="githubFilter">
+                <option value="all">All Projects</option>
+                <option value="github">Has GitHub</option>
+                <option value="no-github">No GitHub</option>
+            </select>
+        </div>
+        
+        <div class="filter-group">
+            <label for="starsFilter">GitHub Stars:</label>
+            <select id="starsFilter">
+                <option value="all">Any Stars</option>
+                <option value="popular">Popular (>100)</option>
+                <option value="very-popular">Very Popular (>1000)</option>
+                <option value="some-stars">Has Stars (>0)</option>
+                <option value="no-stars">No Stars</option>
+            </select>
+        </div>
+        
+        <div class="filter-group">
+            <label for="searchFilter">Search:</label>
+            <input type="text" id="searchFilter" placeholder="Search project names...">
+        </div>
+        
+        <button id="clearFilters">Clear All Filters</button>
+    </div>
+
     <div class="stats">
         <div class="stat">
             <h3>Total Projects</h3>
-            <div class="health-score">{len(self.projects)}</div>
+            <div class="health-score" id="totalCount">{len(self.projects)}</div>
         </div>
         <div class="stat">
             <h3>Healthy Projects</h3>
-            <div class="health-score" style="color: #28a745">{len([p for p in self.projects if p.health_score >= 8])}</div>
+            <div class="health-score" style="color: #28a745" id="healthyCount">{len([p for p in self.projects if p.health_score >= 8])}</div>
         </div>
         <div class="stat">
             <h3>Need Attention</h3>
-            <div class="health-score" style="color: #ffc107">{len([p for p in self.projects if 5 <= p.health_score < 8])}</div>
+            <div class="health-score" style="color: #ffc107" id="warningCount">{len([p for p in self.projects if 5 <= p.health_score < 8])}</div>
         </div>
         <div class="stat">
             <h3>Unhealthy</h3>
-            <div class="health-score" style="color: #dc3545">{len([p for p in self.projects if p.health_score < 5])}</div>
+            <div class="health-score" style="color: #dc3545" id="unhealthyCount">{len([p for p in self.projects if p.health_score < 5])}</div>
         </div>
     </div>
     
@@ -803,6 +872,107 @@ class DashboardServer:
                 </div>
             `;
         }});
+        
+        // Populate language filter options
+        const allLanguages = [...new Set(projects.flatMap(p => p.languages))].sort();
+        const languageFilter = document.getElementById('languageFilter');
+        allLanguages.forEach(lang => {{
+            const option = document.createElement('option');
+            option.value = lang;
+            option.textContent = lang;
+            languageFilter.appendChild(option);
+        }});
+        
+        // Get all project elements
+        const projectElements = document.querySelectorAll('.project');
+        
+        // Filter functions
+        function filterProjects() {{
+            const healthFilter = document.getElementById('healthFilter').value;
+            const languageFilter = document.getElementById('languageFilter').value;
+            const githubFilter = document.getElementById('githubFilter').value;
+            const starsFilter = document.getElementById('starsFilter').value;
+            const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
+            
+            let visibleProjects = [];
+            
+            projects.forEach((project, index) => {{
+                const element = projectElements[index];
+                let visible = true;
+                
+                // Health status filter
+                if (healthFilter !== 'all') {{
+                    if (healthFilter === 'healthy' && project.health_score < 8) visible = false;
+                    if (healthFilter === 'warning' && (project.health_score < 5 || project.health_score >= 8)) visible = false;
+                    if (healthFilter === 'unhealthy' && project.health_score >= 5) visible = false;
+                }}
+                
+                // Language filter
+                if (languageFilter !== 'all') {{
+                    if (!project.languages.includes(languageFilter)) visible = false;
+                }}
+                
+                // GitHub filter
+                if (githubFilter !== 'all') {{
+                    if (githubFilter === 'github' && !project.github_repo) visible = false;
+                    if (githubFilter === 'no-github' && project.github_repo) visible = false;
+                }}
+                
+                // Stars filter
+                if (starsFilter !== 'all') {{
+                    const stars = project.stars || 0;
+                    if (starsFilter === 'popular' && stars <= 100) visible = false;
+                    if (starsFilter === 'very-popular' && stars <= 1000) visible = false;
+                    if (starsFilter === 'some-stars' && stars === 0) visible = false;
+                    if (starsFilter === 'no-stars' && stars > 0) visible = false;
+                }}
+                
+                // Search filter
+                if (searchFilter && !project.name.toLowerCase().includes(searchFilter)) {{
+                    visible = false;
+                }}
+                
+                // Update visibility
+                if (visible) {{
+                    element.classList.remove('hidden');
+                    visibleProjects.push(project);
+                }} else {{
+                    element.classList.add('hidden');
+                }}
+            }});
+            
+            // Update statistics
+            updateStatistics(visibleProjects);
+        }}
+        
+        function updateStatistics(visibleProjects) {{
+            const total = visibleProjects.length;
+            const healthy = visibleProjects.filter(p => p.health_score >= 8).length;
+            const warning = visibleProjects.filter(p => p.health_score >= 5 && p.health_score < 8).length;
+            const unhealthy = visibleProjects.filter(p => p.health_score < 5).length;
+            
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('healthyCount').textContent = healthy;
+            document.getElementById('warningCount').textContent = warning;
+            document.getElementById('unhealthyCount').textContent = unhealthy;
+        }}
+        
+        function clearFilters() {{
+            document.getElementById('healthFilter').value = 'all';
+            document.getElementById('languageFilter').value = 'all';
+            document.getElementById('githubFilter').value = 'all';
+            document.getElementById('starsFilter').value = 'all';
+            document.getElementById('searchFilter').value = '';
+            filterProjects();
+        }}
+        
+        // Add event listeners
+        document.getElementById('healthFilter').addEventListener('change', filterProjects);
+        document.getElementById('languageFilter').addEventListener('change', filterProjects);
+        document.getElementById('githubFilter').addEventListener('change', filterProjects);
+        document.getElementById('starsFilter').addEventListener('change', filterProjects);
+        document.getElementById('searchFilter').addEventListener('input', filterProjects);
+        document.getElementById('clearFilters').addEventListener('click', clearFilters);
         
         // Create health distribution chart
         const ctx = document.getElementById('healthChart').getContext('2d');
