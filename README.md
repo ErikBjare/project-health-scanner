@@ -102,7 +102,7 @@ Projects are scored on a 0-10 scale based on multiple factors:
 
 ### Text Analysis
 
-### Text Analysis
+```txt
 ✅ gptme (10.0/10)
    📂 /Users/user/Programming/gptme
    🌿 Branch: master
@@ -119,6 +119,7 @@ Projects are scored on a 0-10 scale based on multiple factors:
    Healthy (8-10): 33
    Warning (5-8): 77
    Unhealthy (0-5): 7
+ ```
 
 ### HTML Dashboard
 The HTML output includes:
