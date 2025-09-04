@@ -1,0 +1,5 @@
+# Core dependencies for Project Health Dashboard
+requests>=2.31.0
+gitpython>=3.1.0
+python-dateutil>=2.8.0
+colorama>=0.4.0
